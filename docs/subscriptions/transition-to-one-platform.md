@@ -3,7 +3,7 @@ sidebar_position: 13
 ---
 import Launch from '/docs/shared-blocks/_launch.mdx';
 
-# 💙🧡 Preparation for the facade period
+# 💙🧡 Preparation for facade period
  
 
 This page contans all the changes that will be introduced to **existing integrations** on Nordic Wallet Launch 🚀. Your existing Subscriptions APIs will continue to work until the end of 2024 through facade we build. 
@@ -62,7 +62,7 @@ Current agreements where amount is not stated will be depicted as agreements wit
 
 *Draft version of agreement screen, not final version.*
 
-### 1.4 Agreement cancellation by merchant
+### 1.4 Agreement cancelation by merchant
 
 When merchant tries to cancel agreement, which has payments in reserved state - agreement gets cancelled, payments stay in reserved state. This is changing from Nordic Wallet Launch. When merchant cancels agreement all reserved payments will be canceled too. 
 
@@ -136,12 +136,12 @@ Parameter: `one_off_payment.description`
 
 ## **4. Refunds**
 
-In general: it is possible to do GET requests for pre-launch refunds. Furthermore, it is also possible to make refunds for pre-launch payments. Please note: We can only handle 90 days backward for pre-launch payments, whereas we can handle 365 days backward on the new platform, if the payment is completed on the new platform)  GET requests and refunds (up to 90 days) can be made for payments executed on the existing MobilePay platform  
+In general: it is possible to do GET requests for pre-launch refunds. Furthermore, it is also possible to make refunds for pre-launch payments. Please note: We can only handle 30 days backward for pre-launch payments, whereas we can handle 365 days backward on the new platform, if the payment is completed on the new platform)  GET requests and refunds (up to 30 days) can be made for payments executed on the existing MobilePay platform  
 
 ### 4.1 Refund up to 365 days
 Currently, you can refund payments that were executed up to 90 days in the past. Good news! We will give you an amazingly long period to refund your payments on One Platform - **365 days!**  ⚡️
 The new period will be applied only to payments that will be executed on the new platform after Nordic Wallet Launch. 
-- Payments made on the old platform starting from March 12th 2024 have a refund window of 45 days.
+- Payments made on the old platform starting from March 12th 2024 have a refund window of 30 days.
 - Payments made on the new platform have a refund window of 365 days.
 
 ### 4.2 Refunds description
@@ -403,7 +403,105 @@ In the new platform reservation failure and expiration callbacks are sent only a
 If you are planning to reintegrate, you will have to start using new Webhook solution https://developer.vippsmobilepay.com/docs/APIs/webhooks-api/
 By default after integrating with new Webhook solution, you will still receive old **payment** callbacks to your old payment callback URL and there is no possibility to change callback url or authentication method for old integration. This means that you will receive both old callbacks and new webhooks. Once you have integrated towards Webooks and no longer rely on old callbacks, please notify us and we will turn them off.
 
-Here you can find a payload and other useful information about new Webhooks https://developer.vippsmobilepay.com/docs/APIs/recurring-api/recurring-api-guide/#webhooks-integration
+These are the available fields of payment webhook we will be sending
+
+| Field name       | Type              | Description                                                          | Possible values                        |
+|------------------|-------------------|----------------------------------------------------------------------|----------------------------------------|
+| agreementId      | string            | Id of an agreement                                                   | "agr_kFW4chk"                          |
+| chargeExternalId | nullable string   | Merchant provided externalId of payment                              | "ExtId123"                             |
+| chargeId         | string            | Id of payment                                                        | "82ce990f-d08a-448c-bd26-ee6be8418d06" |
+| amount           | number            | Amount of payment in cents                                           | 300                                    |
+| chargeType       | enum              | Indicates if it is recurring, or agreement's initial one off payment | "RECURRING", "INITIAL", "UNSCHEDULED"  |
+| eventType        | enum              | Indicates what has happened to a charge                              | Values provided in a table below       |
+| currency         | enum              | Currency of payment                                                  | "DKK", "NOK", "EUR"                    |
+| occurred         | ISO 8601 UTC date | When change has occurred                                             | 2023-10-10T13:30:36.079765975Z         |
+| amountCaptured   | number            | Amount of payment that was captured                                  | 100                                    |
+| amountCanceled   | number            | Amount of payment that was canceled                                  | 200                                    | 
+| amountRefunded   | number            | Amount of payment that was refunded                                  | 100                                    | 
+| failureCode      | number            | Code of an error during async creation                               | Listed below                           | 
+| failureText      | string            | Explanation of an error during async creation                        | Listed below                           | 
+
+Possible failureCode and failureText combinations. These fields are only present if charge failed async validation after it was created using charge batch creation endpoint
+
+| Failure code | Failure text                               | Explanation                                                          |
+|------------- |--------------------------------------------|--------------------------------------------------------------------- |
+| 50006        | DeclinedBySystem                           | Unspecified exception during charge creation                         | 
+| 50003        | AgreementNotActive                         | Charge is requested for non active agreement                         | 
+| 70001        | ChargeAmountTooHighForFixedAmountAgreement | Charge amount is 5 times higher than fixed amount agreement's amount | 
+| 70002        | ChargeCreationConflict                     | Trying to create charge with same idempotency key more than once     | 
+| 70004        | ChargeTooFarInFuture                       | Due date is too far in the future                                    | 
+| 70005        | ChargeDueDateTooSoon                       | Due date is too soon                                                 | 
+
+These are the possible event types in payment callback
+
+| Event type                            | Description                                                                                                                        |
+|---------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| "recurring.charge-reserved.v1"        | Payment was reserved. Event is not sent for recurring payments with transation type "DIRECT_CAPTURE"                               |
+| "recurring.charge-captured.v1"        | Payment was fully or partially captured                                                                                            |
+| "recurring.charge-canceled.v1"        | Payment was fully or partially cancelled                                                                                           |
+| "recurring.charge-failed.v1"          | Payment failed and will no longer be retried                                                                                       |
+| "recurring.charge-creation-failed.v1" | Payment failed to be created. Sent when merchants  are using charge batch creation endpoint and charges are created asynchronously |                                                    
+
+This is an example of new payment callback
+```
+{
+  "agreementId": "agr_kFW4chk",
+  "chargeExternalId": "extId",
+  "chargeId": "82ce990f-d08a-448c-bd26-ee6be8418d06",
+  "amount": 300,
+  "chargeType": "RECURRING",
+  "eventType": "recurring.charge-canceled.v1",
+  "currency": "NOK",
+  "occurred": "2023-10-10T13:30:36.079765975Z",
+  "amountCaptured": 0,
+  "amountCanceled": 300,
+  "amountRefunded": 0,
+  "failureCode" null,
+  "failureText" null
+}
+```
+
+These are the available fields of agreement webhook we will be sending
+
+| Field name          | Type              | Description                                                                      | Possible values                        |
+|---------------------|-------------------|----------------------------------------------------------------------------------|----------------------------------------|
+| agreementId         | string            | Id of an agreement                                                               | "agr_kFW4chk"                          |
+| agreementUUID       | UUID              | Id of an agreement                                                               | "82ce990f-d08a-448c-bd26-ee6be8418d06" |
+| agreementExternalId | nullable string   | Merchant provided externalId of agreement                                        | "ExtId123"                             |
+| eventType           | enum              | Indicates what has happened to an agreement                                      | Values provided in a table below       |
+| occurred            | ISO 8601 UTC date | When change has occurred                                                         | 2023-10-10T13:30:36.079765975Z         |
+| actor               | nullable enum     | Indicates who has initiated action. Applicable only for agreementStopped webhook | "MERCHANT", "USER"                     |
+
+These are the possible event types in agreement callback
+
+| Event type                         | Description                                             |
+|------------------------------------|---------------------------------------------------------|
+| "recurring.agreement-activated.v1" | User has accepted agreement                             |
+| "recurring.agreement-rejected.v1"  | User has rejected agreement                             |
+| "recurring.agreement-stopped.v1"   | Agreement was stopped either by merchant either by user |  
+| "recurring.agreement-expired.v1"   | Agreement has expired                                   |                                                    
+
+
+This is an examples of new agreement callback
+```
+{
+  "agreementId": "agr_hXbXJUN",
+  "occurred": "2023-10-11T09:51:04.562829303Z",
+  "agreementExternalId": null,
+  "eventType": "recurring.agreement-expired.v1",
+  "agreementUUID": "c81bf516-7972-488e-bbf1-146dcd8592f9",
+  "actor": null
+}
+
+{
+  "agreementId": "agr_hXbXJUN",
+  "occurred": "2023-10-11T09:51:04.562829303Z",
+  "agreementExternalId": null,
+  "eventType": "recurring.agreement-stopped.v1",
+  "agreementUUID": "c81bf516-7972-488e-bbf1-146dcd8592f9",
+  "actor": "MERCHANT"
+}
+```
 
 ### 9.5. Error messages
 
